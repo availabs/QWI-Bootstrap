@@ -11,4 +11,6 @@ NOTES:
 
     Create-qwi-Database.sh and Create-qwi_api-User.sh have a POSTGRES_USER variable to set.
 
+    Also, Create-qwi-Database.sh may require revision based on your Postgres setup.
+
     Download-And-Load_QWI_CSV-File.sh is configurable.

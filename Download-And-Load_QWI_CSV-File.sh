@@ -27,7 +27,7 @@ QWI_VERSION='R2015Q1'
 STATES=( 'ny' 'nj' )
 WORKER_CHARACTERISTICS=( 'se' )
 FIRM_CHARACTERISTICS=( 'fa' )
-DATA_AGGREGATIONS=( 'gc_ns_op_u' )
+DATA_AGGREGATIONS=( 'gw_ns_op_u' )
 
 for state in "${STATES[@]}"
 do
@@ -42,6 +42,7 @@ do
                 QWI_FILE_NAME="qwi_${state}_${TABLE_NAME}"
                 QWI_FILE_CSV="${QWI_FILE_NAME}.csv"
                 QWI_FILE_GZ="${QWI_FILE_CSV}.gz"
+                QWI_FILE_TAR="./downloaded_data/${QWI_FILE_CSV}.tar.gz"
 
                 LOAD_DATA_COMMAND="\copy ${TABLE_NAME} FROM '${PWD}/${QWI_FILE_CSV}' DELIMITER ',' CSV HEADER;"
 
@@ -58,7 +59,7 @@ do
                 TABLE_COUNT=$(sed "s/__TABLE_NAME__/${TABLE_NAME}/g" ./sql_scripts/TableExistenceCheck.sql | psql qwi)
                 TABLE_COUNT=$(echo "${TABLE_COUNT//[[:blank:]]/}" | sed -n 3p) 
 
-                if [ "${TABLE_COUNT}" == '0' ];  
+                if [[ ${TABLE_COUNT} == '0' ]];  
                 then 
                     echo "Creating table ${TABLE_NAME}."
                     sed "s/__TABLE_NAME__/${TABLE_NAME}/g" ./sql_scripts/CREATE_QWI_TABLE.sql | psql qwi
@@ -70,7 +71,7 @@ do
                     STATE_COUNT_IN_TABLE=$(echo ${SQL_SCRIPT} | psql qwi)
                     STATE_COUNT_IN_TABLE=$(echo "${STATE_COUNT_IN_TABLE//[[:blank:]]/}" | sed -n 3p) 
 
-                    if [ "${STATE_COUNT_IN_TABLE}" == '0' ];
+                    if [[ ${STATE_COUNT_IN_TABLE} == '0' ]];
                     then
                         echo "Inserting ${state} into existing table, ${TABLE_NAME}."
                     else
@@ -80,21 +81,31 @@ do
                     fi
                 fi
 
-                echo "downloading the ${QWI_FILE_NAME} csv."
-                wget ${QWI_DATA_ADDR}
-                echo 
+                # Is the csv already in the downloaded_data directory?
+                if [ -f ${QWI_FILE_TAR} ];
+                then
+                    echo "Using a local archived version of ${QWI_FILE_NAME}."
+                    tar zxvf ${QWI_FILE_TAR} -C $(pwd)
+                else
+                    echo "downloading the ${QWI_FILE_NAME} csv."
+                    wget ${QWI_DATA_ADDR}
+                    echo 
 
-                echo "inflating the ${QWI_FILE_NAME} csv."
-                gunzip ${QWI_FILE_GZ}
-                echo 
+                    echo "inflating the ${QWI_FILE_NAME} csv."
+                    gunzip ${QWI_FILE_GZ}
+                    echo 
+                fi
 
                 echo "loading the ${QWI_FILE_NAME} dataset into the database."
                 echo "${LOAD_DATA_COMMAND}" | psql -U qwi_api -d qwi
                 echo 
 
-                echo "moving tarball of ${QWI_FILE_CSV} to ./downloaded_data/"
-                tar zcvf "./downloaded_data/${QWI_FILE_CSV}.tar.gz" "${QWI_FILE_CSV}"
-                echo 
+                if [ ! -f ${QWI_FILE_TAR} ];
+                then
+                    echo "moving tarball of ${QWI_FILE_CSV} to ./downloaded_data/"
+                    tar zcvf "${QWI_FILE_TAR}" "${QWI_FILE_CSV}"
+                    echo 
+                fi
 
                 echo "deleting ${QWI_FILE_CSV}."
                 rm -f ${QWI_FILE_CSV}
