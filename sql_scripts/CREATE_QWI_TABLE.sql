@@ -1,4 +1,4 @@
-CREATE TABLE __TABLE_NAME__ (
+CREATE TABLE IF NOT EXISTS __TABLE_NAME__ (
 	periodicity   char(1),  /* Periodicity of report */
 	seasonadj     char(1),  /* Seasonal Adjustment Indicator */
 	geo_level     char(1),  /* Group: Geographic level of aggregation */

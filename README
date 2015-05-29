@@ -2,8 +2,7 @@ Execute the scripts in the folloing order:
 
     1) Create-qwi-Database.sh
     2) Create-qwi_api-User.sh
-    3) Create-fips_codes-Table.sh
-    4) Download-And-Load_QWI_CSV-File.sh*  
+    3) Download-And-Load_QWI_CSV-File.sh*  
 
 
 NOTES:
