@@ -27,10 +27,10 @@ CREATE_LABEL_TABLES_SCRIPT="Create-labels-Tables.sh"
 #FIRM_CHARACTERISTICS=( 'fa' 'fs' )
 #DATA_AGGREGATIONS=( 'gc_ns_op_u' 'gm_ns_op_u' 'gs_n3_op_u' 'gs_n4_op_u' 'gs_ns_op_u' 'gw_ns_op_u' )
 
-STATES=( 'ny' 'nj' )
+STATES=( 'ct' 'me' 'nh' 'ri' 'vt' )
 WORKER_CHARACTERISTICS=( 'se' )
 FIRM_CHARACTERISTICS=( 'fa' )
-DATA_AGGREGATIONS=( 'gm_ns_op_u' 'gc_ns_op_u' )
+DATA_AGGREGATIONS=( 'gc_ns_op_u' )
 
 GENERIC_LABEL_TABLES=(   \
     'label_agegrp'       \
@@ -40,6 +40,7 @@ GENERIC_LABEL_TABLES=(   \
     'label_firmsize'     \
     'label_geo_level'    \
     'label_ind_level'    \
+    'label_industry'     \
     'label_ownercode'    \
     'label_periodicity'  \
     'label_race'         \
@@ -65,6 +66,7 @@ function table_count() {
 
 if [[ ! $(table_count ${GENERIC_LABEL_TABLES}) == '0' ]];  
 then 
+        echo "$(ls -A ${LABELS_DIR}/${QWI_RELEASE})"
     echo "Label tables already in database."
     echo "     (Assuming all done label tables created as a batch, and none are empty.)"
     echo
@@ -80,8 +82,9 @@ else
         mkdir -p "${LABELS_DIR}/${QWI_RELEASE}"
     fi
 
-    if [ "$(ls -A ${LABELS_DIR}/${QWI_RELEASE})" ];
+    if [[ "$(ls -A ${LABELS_DIR}/${QWI_RELEASE})" ]];
     then
+        echo "$(ls -A ${LABELS_DIR}/${QWI_RELEASE})"
         echo "Generic data labels already in ${LABELS_DIR}/${QWI_RELEASE}."
         echo "   (Assuming if one there, then all there.)"
         echo
@@ -129,6 +132,7 @@ done
 
 for state in "${STATES[@]}"
 do
+    FIRST_RUN_FOR_STATE=1
     for worker_ch in "${WORKER_CHARACTERISTICS[@]}"
     do
         for firm_ch in "${FIRM_CHARACTERISTICS[@]}"
@@ -163,31 +167,34 @@ do
                     ## Because duplicate rows are bad...
 
                     # First, we must make sure that the state is in the labels_geography table.
-                    echo "Checking whether ${state} is in the label_geography table."
-                    Q="select exists(select 1 from label_geography where substring(lower(label) from '..$')='${state}');"
-                    EXISTS="$(echo ${Q} | psql -q -d qwi -t)"
-                    if [ ${EXISTS} == 't' ];
+                    if [ $FIRST_RUN_FOR_STATE ];
                     then
-                        echo "${state} is in label_geography."
-                    else
-                        echo "Loading ${state}'s geography labels into the label_geography table."
-                        LOAD_DATA_CMD="\copy label_geography FROM '${GEO_LABELS_DIR}/${state}.csv' DELIMITER ',' CSV HEADER;"
-                        echo "${LOAD_DATA_CMD}" | psql -q -U qwi_api -d qwi
-                    fi
-                    
-                    SQL_SCRIPT=$(sed "s/__TABLE_NAME__/${TABLE_NAME}/g" ${SQL_SCRIPTS_DIR}/StateAlreadyLoaded.sql)
-                    SQL_SCRIPT=$(echo ${SQL_SCRIPT} | sed "s/__STATE_ABBR__/${state}/g")
+                        echo "Checking whether ${state} is in the label_geography table."
+                        Q="select exists(select 1 from label_geography where substring(lower(label) from '..$')='${state}');"
+                        EXISTS="$(echo ${Q} | psql -q -d qwi -t)"
+                        if [ ${EXISTS} == 't' ];
+                        then
+                            echo "${state} is in label_geography."
+                        else
+                            echo "Loading ${state}'s geography labels into the label_geography table."
+                            LOAD_DATA_CMD="\copy label_geography FROM '${GEO_LABELS_DIR}/${state}.csv' DELIMITER ',' CSV HEADER;"
+                            echo "${LOAD_DATA_CMD}" | psql -q -U qwi_api -d qwi
+                        fi
+                        
+                        SQL_SCRIPT=$(sed "s/__TABLE_NAME__/${TABLE_NAME}/g" ${SQL_SCRIPTS_DIR}/StateAlreadyLoaded.sql)
+                        SQL_SCRIPT=$(echo ${SQL_SCRIPT} | sed "s/__STATE_ABBR__/${state}/g")
 
-                    STATE_COUNT_IN_TABLE=$(echo ${SQL_SCRIPT} | psql -q qwi)
-                    STATE_COUNT_IN_TABLE=$(echo "${STATE_COUNT_IN_TABLE//[[:blank:]]/}" | sed -n 3p) 
+                        STATE_COUNT_IN_TABLE=$(echo ${SQL_SCRIPT} | psql -q qwi)
+                        STATE_COUNT_IN_TABLE=$(echo "${STATE_COUNT_IN_TABLE//[[:blank:]]/}" | sed -n 3p) 
 
-                    if [[ ${STATE_COUNT_IN_TABLE} == 'f' ]];
-                    then
-                        echo "Inserting ${state} into existing table, ${TABLE_NAME}."
-                    else
-                        echo "ERROR: ${state} already in ${TABLE_NAME}."
-                        echo "       Skipping this state for this table."
-                        continue
+                        if [[ ${STATE_COUNT_IN_TABLE} == 'f' ]];
+                        then
+                            echo "Inserting ${state} into existing table, ${TABLE_NAME}."
+                        else
+                            echo "ERROR: ${state} already in ${TABLE_NAME}."
+                            echo "       Skipping this state for this table."
+                            continue
+                        fi
                     fi
                 fi
 
@@ -225,5 +232,7 @@ do
             done
         done
     done
+
+    FIRST_RUN_FOR_STATE=''
 done
 
